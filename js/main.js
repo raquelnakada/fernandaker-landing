@@ -24,27 +24,54 @@
     }, 100);
   }
 
-  // --- VTURB EVENT LISTENER ---
-  try {
-    window.addEventListener('message', function (e) {
-      try {
-        if (e.data && typeof e.data === 'object') {
-          // Captura qualquer evento de tempo do Vturb
-          if (e.data.type === 'smartplayer_timeupdate' || e.data.event === 'timeupdate' ||
-              e.data.eventName === 'smartplayer_timeupdate') {
-            var currentTime = e.data.currentTime || e.data.time || e.data.seconds || 0;
-            if (currentTime >= DELAY_SECONDS) {
-              showDelayedContent();
-            }
-          }
-        }
-      } catch (err) { /* ignore vturb errors */ }
-    });
-  } catch (err) { /* ignore */ }
+  // --- DEBUG: mostra eventos do Vturb na tela (TEMPORÁRIO) ---
+  var debugBox = document.createElement('div');
+  debugBox.id = 'vturb-debug';
+  debugBox.style.cssText = 'position:fixed;top:0;left:0;right:0;background:yellow;color:black;padding:8px;font-size:12px;z-index:99999;max-height:150px;overflow:auto;';
+  debugBox.textContent = 'DEBUG: Aguardando eventos do Vturb...';
+  document.body.appendChild(debugBox);
+  var debugCount = 0;
 
-  // --- SEM FALLBACK POR TEMPO ---
-  // O conteúdo só aparece quando o VÍDEO chegar em 12 min (via evento do Vturb)
-  // Isso garante que o lead precisa assistir o vídeo para desbloquear
+  // --- VTURB EVENT LISTENER (captura TUDO) ---
+  window.addEventListener('message', function (e) {
+    try {
+      var data = e.data;
+
+      // Ignora eventos que não são objeto ou são de extensões
+      if (!data || typeof data !== 'object') return;
+      if (typeof data === 'string') return;
+
+      // Log de TODOS os eventos pra debug
+      debugCount++;
+      if (debugCount <= 50) {
+        var keys = Object.keys(data).join(', ');
+        var json = JSON.stringify(data).substring(0, 200);
+        debugBox.textContent = 'Evento #' + debugCount + ' keys:[' + keys + '] = ' + json;
+      }
+
+      // Tenta extrair tempo de QUALQUER formato possível
+      var currentTime = 0;
+
+      // Formato 1: smartplayer_timeupdate
+      if (data.type === 'smartplayer_timeupdate' || data.event === 'timeupdate' ||
+          data.eventName === 'smartplayer_timeupdate' || data.name === 'timeupdate') {
+        currentTime = data.currentTime || data.time || data.seconds || data.position || 0;
+      }
+
+      // Formato 2: qualquer campo que pareça tempo do vídeo
+      if (!currentTime && data.currentTime) currentTime = data.currentTime;
+      if (!currentTime && data.time) currentTime = data.time;
+      if (!currentTime && data.seconds) currentTime = data.seconds;
+      if (!currentTime && data.position) currentTime = data.position;
+
+      if (currentTime >= DELAY_SECONDS) {
+        debugBox.textContent = 'DESBLOQUEANDO! Tempo: ' + currentTime + 's';
+        showDelayedContent();
+      }
+    } catch (err) {
+      debugBox.textContent = 'ERRO: ' + err.message;
+    }
+  });
 
   // --- SKIP DELAY (Ctrl+Shift+S) ---
   document.addEventListener('keydown', function (e) {

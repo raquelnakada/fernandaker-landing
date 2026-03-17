@@ -24,53 +24,68 @@
     }, 100);
   }
 
-  // --- DEBUG: mostra eventos do Vturb na tela (TEMPORÁRIO) ---
-  var debugBox = document.createElement('div');
-  debugBox.id = 'vturb-debug';
-  debugBox.style.cssText = 'position:fixed;top:0;left:0;right:0;background:yellow;color:black;padding:8px;font-size:12px;z-index:99999;max-height:150px;overflow:auto;';
-  debugBox.textContent = 'DEBUG: Aguardando eventos do Vturb...';
-  document.body.appendChild(debugBox);
-  var debugCount = 0;
+  // --- TIMER BASEADO NA INTERAÇÃO DO USUÁRIO ---
+  // O Vturb v4 não envia eventos postMessage, então usamos um timer
+  // que inicia quando o usuário interage com a página (clica pra ouvir/assistir)
+  var timerStarted = false;
 
-  // --- VTURB EVENT LISTENER (captura TUDO) ---
+  function startDelayTimer() {
+    if (timerStarted || contentShown) return;
+    timerStarted = true;
+
+    var startTime = Date.now();
+
+    // Timer principal
+    setTimeout(function () {
+      showDelayedContent();
+    }, DELAY_SECONDS * 1000);
+
+    // Checagem periódica (robusto para mobile que throttle setTimeout)
+    var checkInterval = setInterval(function () {
+      if (contentShown) {
+        clearInterval(checkInterval);
+        return;
+      }
+      var elapsed = (Date.now() - startTime) / 1000;
+      if (elapsed >= DELAY_SECONDS) {
+        showDelayedContent();
+        clearInterval(checkInterval);
+      }
+    }, 5000);
+
+    // Quando volta pra aba, verifica se já passou o tempo
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && !contentShown) {
+        var elapsed = (Date.now() - startTime) / 1000;
+        if (elapsed >= DELAY_SECONDS) {
+          showDelayedContent();
+        }
+      }
+    });
+  }
+
+  // Inicia o timer na primeira interação do usuário (click, touch, scroll)
+  var interactionEvents = ['click', 'touchstart', 'scroll'];
+  interactionEvents.forEach(function (evt) {
+    document.addEventListener(evt, function handler() {
+      startDelayTimer();
+      // Remove o listener após a primeira interação
+      interactionEvents.forEach(function (e) {
+        document.removeEventListener(e, handler);
+      });
+    }, { once: true });
+  });
+
+  // Também escuta eventos postMessage do Vturb (caso funcione em algum cenário)
   window.addEventListener('message', function (e) {
     try {
-      var data = e.data;
-
-      // Ignora eventos que não são objeto ou são de extensões
-      if (!data || typeof data !== 'object') return;
-      if (typeof data === 'string') return;
-
-      // Log de TODOS os eventos pra debug
-      debugCount++;
-      if (debugCount <= 50) {
-        var keys = Object.keys(data).join(', ');
-        var json = JSON.stringify(data).substring(0, 200);
-        debugBox.textContent = 'Evento #' + debugCount + ' keys:[' + keys + '] = ' + json;
+      if (e.data && typeof e.data === 'object') {
+        var currentTime = e.data.currentTime || e.data.time || e.data.seconds || 0;
+        if (currentTime >= DELAY_SECONDS) {
+          showDelayedContent();
+        }
       }
-
-      // Tenta extrair tempo de QUALQUER formato possível
-      var currentTime = 0;
-
-      // Formato 1: smartplayer_timeupdate
-      if (data.type === 'smartplayer_timeupdate' || data.event === 'timeupdate' ||
-          data.eventName === 'smartplayer_timeupdate' || data.name === 'timeupdate') {
-        currentTime = data.currentTime || data.time || data.seconds || data.position || 0;
-      }
-
-      // Formato 2: qualquer campo que pareça tempo do vídeo
-      if (!currentTime && data.currentTime) currentTime = data.currentTime;
-      if (!currentTime && data.time) currentTime = data.time;
-      if (!currentTime && data.seconds) currentTime = data.seconds;
-      if (!currentTime && data.position) currentTime = data.position;
-
-      if (currentTime >= DELAY_SECONDS) {
-        debugBox.textContent = 'DESBLOQUEANDO! Tempo: ' + currentTime + 's';
-        showDelayedContent();
-      }
-    } catch (err) {
-      debugBox.textContent = 'ERRO: ' + err.message;
-    }
+    } catch (err) { /* ignore */ }
   });
 
   // --- SKIP DELAY (Ctrl+Shift+S) ---

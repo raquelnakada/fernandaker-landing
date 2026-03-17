@@ -42,36 +42,9 @@
     });
   } catch (err) { /* ignore */ }
 
-  // --- FALLBACK TIMER (robusto para mobile) ---
-  var pageLoadTime = Date.now();
-
-  // Timer principal
-  setTimeout(function () {
-    showDelayedContent();
-  }, DELAY_SECONDS * 1000);
-
-  // Checagem periódica a cada 10s (funciona mesmo quando mobile throttle o setTimeout)
-  var checkInterval = setInterval(function () {
-    if (contentShown) {
-      clearInterval(checkInterval);
-      return;
-    }
-    var elapsed = (Date.now() - pageLoadTime) / 1000;
-    if (elapsed >= DELAY_SECONDS) {
-      showDelayedContent();
-      clearInterval(checkInterval);
-    }
-  }, 10000);
-
-  // Quando o usuário volta pra aba/tela, verifica se já passou o tempo
-  document.addEventListener('visibilitychange', function () {
-    if (!document.hidden && !contentShown) {
-      var elapsed = (Date.now() - pageLoadTime) / 1000;
-      if (elapsed >= DELAY_SECONDS) {
-        showDelayedContent();
-      }
-    }
-  });
+  // --- SEM FALLBACK POR TEMPO ---
+  // O conteúdo só aparece quando o VÍDEO chegar em 12 min (via evento do Vturb)
+  // Isso garante que o lead precisa assistir o vídeo para desbloquear
 
   // --- SKIP DELAY (Ctrl+Shift+S) ---
   document.addEventListener('keydown', function (e) {

@@ -25,21 +25,53 @@
   }
 
   // --- VTURB EVENT LISTENER ---
-  window.addEventListener('message', function (e) {
-    if (e.data && typeof e.data === 'object') {
-      if (e.data.type === 'smartplayer_timeupdate' || e.data.event === 'timeupdate') {
-        var currentTime = e.data.currentTime || e.data.time || 0;
-        if (currentTime >= DELAY_SECONDS) {
-          showDelayedContent();
+  try {
+    window.addEventListener('message', function (e) {
+      try {
+        if (e.data && typeof e.data === 'object') {
+          // Captura qualquer evento de tempo do Vturb
+          if (e.data.type === 'smartplayer_timeupdate' || e.data.event === 'timeupdate' ||
+              e.data.eventName === 'smartplayer_timeupdate') {
+            var currentTime = e.data.currentTime || e.data.time || e.data.seconds || 0;
+            if (currentTime >= DELAY_SECONDS) {
+              showDelayedContent();
+            }
+          }
         }
-      }
-    }
-  });
+      } catch (err) { /* ignore vturb errors */ }
+    });
+  } catch (err) { /* ignore */ }
 
-  // --- FALLBACK TIMER ---
+  // --- FALLBACK TIMER (robusto para mobile) ---
+  var pageLoadTime = Date.now();
+
+  // Timer principal
   setTimeout(function () {
     showDelayedContent();
   }, DELAY_SECONDS * 1000);
+
+  // Checagem periódica a cada 10s (funciona mesmo quando mobile throttle o setTimeout)
+  var checkInterval = setInterval(function () {
+    if (contentShown) {
+      clearInterval(checkInterval);
+      return;
+    }
+    var elapsed = (Date.now() - pageLoadTime) / 1000;
+    if (elapsed >= DELAY_SECONDS) {
+      showDelayedContent();
+      clearInterval(checkInterval);
+    }
+  }, 10000);
+
+  // Quando o usuário volta pra aba/tela, verifica se já passou o tempo
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden && !contentShown) {
+      var elapsed = (Date.now() - pageLoadTime) / 1000;
+      if (elapsed >= DELAY_SECONDS) {
+        showDelayedContent();
+      }
+    }
+  });
 
   // --- SKIP DELAY (Ctrl+Shift+S) ---
   document.addEventListener('keydown', function (e) {
